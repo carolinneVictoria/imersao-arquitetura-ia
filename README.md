@@ -3,6 +3,7 @@
 O **Alura Album** é um tributo interativo à história da computação e da tecnologia, construído no formato de um álbum de figurinhas virtual animado. O projeto reúne mentes pioneiras da inteligência artificial, arquitetos de bancos de dados, desenvolvedores de sistemas operacionais e grandes educadores de tecnologia do Brasil.
 
 Esta versão estendida traz recursos avançados de gamificação, efeitos visuais premium, som sintético e geração dinâmica de figurinhas por upload.
+Acesse por aqui: https://imersao-arquitetura-ia.vercel.app
 
 ---
 
@@ -72,21 +73,6 @@ Esta versão estendida traz recursos avançados de gamificação, efeitos visuai
 Como o frontend é composto por arquivos estáticos (`index.html`, `app.js` e `style.css`), você pode:
 * Abrir o arquivo [index.html](index.html) diretamente com um duplo clique no navegador, **OU**
 * Servir a pasta raiz usando o Apache do XAMPP (acessando `http://localhost/imersao-arquitetura-ia/index.html`), o que habilita um ambiente de produção local completo.
-
----
-
-## 📂 Estrutura de Diretórios
-
-```text
-├── backend/
-│   ├── figurinhas/          # Pasta de imagens das figurinhas e metadados JSON (Você)
-│   ├── venv/                # Ambiente virtual do Python
-│   └── main.py              # API FastAPI (Rotas GET e POST)
-├── app.js                   # Lógica e regras de negócio do álbum, pacotes, quiz e inventário
-├── index.html               # Estrutura principal das páginas e do painel lateral
-├── style.css                # Estilização completa do álbum, efeitos sonoros de transição e animações
-└── README.md                # Documentação do projeto
-```
 
 ---
 
