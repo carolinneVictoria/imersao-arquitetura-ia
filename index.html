@@ -29,6 +29,113 @@
         </svg>
     </button>
 
+    <!-- Botão de controle do painel flutuante -->
+    <button id="collector-panel-toggle" class="collector-panel-btn" aria-label="Abrir Painel do Colecionador">
+        <span class="pulse-ring"></span>
+        <span class="btn-text">🎮 Painel do Colecionador</span>
+    </button>
+
+    <!-- Painel Lateral do Colecionador (Sidebar) -->
+    <div id="collector-sidebar" class="sidebar-panel">
+        <div class="sidebar-header">
+            <h3 class="sidebar-title">⚡ Central do Álbum</h3>
+            <button id="close-sidebar" class="close-sidebar-btn" aria-label="Fechar Painel">&times;</button>
+        </div>
+        
+        <!-- Abas -->
+        <div class="sidebar-tabs">
+            <button class="tab-btn active" data-tab="tab-packs">📦 Pacotes</button>
+            <button class="tab-btn" data-tab="tab-inventory">🎒 Inventário</button>
+            <button class="tab-btn" data-tab="tab-quiz">🧠 Quiz Tech</button>
+            <button class="tab-btn" data-tab="tab-custom">📸 Criar Figurinha</button>
+        </div>
+
+        <!-- Conteúdo das Abas -->
+        <div class="sidebar-content">
+            <!-- ABA 1: PACOTES -->
+            <div id="tab-packs" class="tab-pane active">
+                <div class="packs-summary">
+                    <span class="packs-badge">Pacotes Restantes: <strong id="packs-count">3</strong></span>
+                </div>
+                <div class="booster-container">
+                    <div id="booster-pack" class="booster-pack">
+                        <div class="booster-glow"></div>
+                        <div class="booster-label">COPA TECH</div>
+                        <div class="booster-seal">IMERSÃO 2026</div>
+                        <div class="booster-open-tip">Clique para Abrir!</div>
+                    </div>
+                </div>
+                <div class="revealed-cards-title hidden" id="revealed-title">Figurinhas Reveladas:</div>
+                <div class="revealed-cards-container" id="revealed-cards">
+                    <!-- Cards preenchidos via JS -->
+                </div>
+            </div>
+
+            <!-- ABA 2: INVENTÁRIO -->
+            <div id="tab-inventory" class="tab-pane">
+                <div class="inventory-summary">
+                    <span>Figurinhas na Pilha: <strong id="inventory-count">0</strong></span>
+                </div>
+                <div class="inventory-list" id="inventory-list">
+                    <!-- Figurinhas do inventário preenchidas via JS -->
+                </div>
+            </div>
+
+            <!-- ABA 3: QUIZ TECH -->
+            <div id="tab-quiz" class="tab-pane">
+                <div class="quiz-container" id="quiz-container">
+                    <div class="quiz-welcome" id="quiz-welcome">
+                        <h4>Desafio de Conhecimento Tech!</h4>
+                        <p>Responda corretamente a 3 perguntas sobre as personalidades do álbum para ganhar +2 pacotes de figurinhas.</p>
+                        <button id="start-quiz-btn" class="quiz-primary-btn">Iniciar Quiz</button>
+                    </div>
+                    <div class="quiz-game hidden" id="quiz-game">
+                        <div class="quiz-progress">Pergunta <span id="quiz-current-num">1</span> de 3</div>
+                        <div class="quiz-question" id="quiz-question-text">Texto da Pergunta</div>
+                        <div class="quiz-options" id="quiz-options-container">
+                            <!-- Opções geradas via JS -->
+                        </div>
+                    </div>
+                    <div class="quiz-result hidden" id="quiz-result">
+                        <h4 id="quiz-result-title">Resultado</h4>
+                        <p id="quiz-result-text">Você acertou X de 3.</p>
+                        <button id="quiz-restart-btn" class="quiz-primary-btn">Tentar Novamente</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ABA 4: CRIAR FIGURINHA -->
+            <div id="tab-custom" class="tab-pane">
+                <div class="custom-card-form-container">
+                    <h4>Crie sua Figurinha #30!</h4>
+                    <p class="form-desc">Faça o upload de uma foto sua e defina seu nome e cargo para se juntar às lendas da tecnologia.</p>
+                    <form id="custom-card-form" onsubmit="event.preventDefault();">
+                        <div class="form-group">
+                            <label for="custom-name">Nome</label>
+                            <input type="text" id="custom-name" name="nome" placeholder="Seu Nome" maxlength="20" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="custom-role">Cargo / Especialidade</label>
+                            <input type="text" id="custom-role" name="role" placeholder="Ex: Desenvolvedor(a) FullStack" maxlength="45" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="custom-file">Sua Foto</label>
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="custom-file" name="file" accept="image/*" required>
+                                <span class="file-upload-label" id="file-label-text">Selecionar Imagem</span>
+                            </div>
+                            <div id="upload-preview-container" class="hidden">
+                                <img id="upload-preview" src="#" alt="Preview">
+                            </div>
+                        </div>
+                        <button type="submit" id="btn-submit-custom" class="quiz-primary-btn">Gerar Figurinha</button>
+                    </form>
+                    <div id="custom-status-msg" class="status-msg hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Navigation Arrows -->
     <button id="btn-prev" class="nav-btn nav-btn-left" aria-label="Página Anterior">
         <svg viewBox="0 0 24 24" width="36" height="36">
