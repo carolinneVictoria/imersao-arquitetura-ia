@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, Form
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import glob
+import json
 
 # Cria a instância da aplicação FastAPI
 app = FastAPI()
@@ -53,15 +54,72 @@ figurinhas = [
     {"id": 27, "nome": "Gi Space Coding", "categoria": "BRASIL", "imagem_url": "/figurinhas/27/imagem"},
     {"id": 28, "nome": "Vinicius Neves", "categoria": "BRASIL", "imagem_url": "/figurinhas/28/imagem"},
     {"id": 29, "nome": "Rafaela Ballerini", "categoria": "BRASIL", "imagem_url": "/figurinhas/29/imagem"},
-    # A figurinha 30 ainda não está disponível porque não possui imagem correspondente na pasta
-    # {"id": 30, "nome": "Você", "categoria": "BRASIL", "imagem_url": "/figurinhas/30/imagem"}
+    {"id": 30, "nome": "Você", "categoria": "BRASIL", "imagem_url": "/figurinhas/30/imagem", "role": "Coloque sua figurinha aqui!"}
 ]
+
+def obter_dados_figurinha_30():
+    caminho_meta = os.path.join(PASTA_IMAGENS, "30-voce.json")
+    nome = "Você"
+    role = "Coloque sua figurinha aqui!"
+    if os.path.exists(caminho_meta):
+        try:
+            with open(caminho_meta, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+                nome = meta.get("nome", nome)
+                role = meta.get("role", role)
+        except Exception:
+            pass
+    return nome, role
 
 # Endpoint GET "/figurinhas" para retornar a lista de figurinhas ativas
 @app.get("/figurinhas")
 def listar_figurinhas():
-    # Retorna a lista de figurinhas ativas em formato JSON
-    return figurinhas
+    nome_30, role_30 = obter_dados_figurinha_30()
+    lista_atualizada = []
+    for f in figurinhas:
+        # Copia dicionário para não modificar o original global diretamente
+        item = dict(f)
+        if item["id"] == 30:
+            item["nome"] = nome_30
+            item["role"] = role_30
+        lista_atualizada.append(item)
+    return lista_atualizada
+
+# Endpoint POST "/figurinhas/30" para fazer upload da foto e salvar metadados personalizados
+@app.post("/figurinhas/30")
+async def salvar_figurinha_30(
+    file: UploadFile,
+    nome: str = Form("Você"),
+    role: str = Form("Coloque sua figurinha aqui!")
+):
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp", ".avif"]:
+        raise HTTPException(status_code=400, detail="Formato de imagem inválido")
+    
+    # Remove arquivos de imagem antigos do id 30
+    padrao_antigo = os.path.join(PASTA_IMAGENS, "30*")
+    for f in glob.glob(padrao_antigo):
+        try:
+            # Não remove o JSON de configuração se ele estiver sendo sobrescrito abaixo
+            if not f.endswith(".json"):
+                os.remove(f)
+        except Exception:
+            pass
+            
+    # Salva a nova imagem
+    nome_arquivo = f"30-voce{ext}"
+    caminho_imagem = os.path.join(PASTA_IMAGENS, nome_arquivo)
+    with open(caminho_imagem, "wb") as buffer:
+        content = await file.read()
+        buffer.write(content)
+        
+    # Salva os metadados em JSON
+    caminho_meta = os.path.join(PASTA_IMAGENS, "30-voce.json")
+    with open(caminho_meta, "w", encoding="utf-8") as f_meta:
+        json.dump({"nome": nome, "role": role}, f_meta, ensure_ascii=False, indent=4)
+        
+    return {"status": "sucesso", "nome": nome, "role": role}
+
 
 # Endpoint GET "/figurinhas/{id}/imagem" para buscar e retornar a imagem da figurinha pelo ID
 @app.get("/figurinhas/{id}/imagem")
