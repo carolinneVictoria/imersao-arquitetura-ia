@@ -5,7 +5,7 @@
 // ===================================================
 const API_BASE_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000"
-    : "https://sua-api-backend.onrender.com"; // Substitua pela URL da sua API deployada (ex: no Render ou Railway)
+    : "https://imersao-arquitetura-ia.onrender.com";
 
 // ===================================================
 // GERENCIAMENTO DE ESTADO LOCAL (localStorage)
