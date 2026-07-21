@@ -6,56 +6,107 @@
 const API_BASE_URL = "http://localhost:8000";
 
 // ===================================================
-// FUNÇÃO: Preenche os slots do álbum com imagens da API
-// Esta função é chamada após o álbum ser inicializado.
+// GERENCIAMENTO DE ESTADO LOCAL (localStorage)
+// ===================================================
+const STATE = {
+    pastedIds: [],       // IDs colados no álbum
+    inventoryIds: [],    // IDs no inventário (com repetições)
+    packsLeft: 3,        // Pacotes restantes para abrir
+    activeStickers: []   // Lista total obtida da API
+};
+
+const RARE_IDS = [1, 3, 4, 6, 11, 16, 20, 21, 23, 30];
+
+function loadState() {
+    try {
+        STATE.pastedIds = JSON.parse(localStorage.getItem("album_pasted_ids")) || [];
+        STATE.inventoryIds = JSON.parse(localStorage.getItem("album_inventory_ids")) || [];
+        STATE.packsLeft = localStorage.getItem("album_packs_left") !== null ? parseInt(localStorage.getItem("album_packs_left"), 10) : 3;
+    } catch (e) {
+        console.error("Erro ao carregar estado do localStorage:", e);
+    }
+}
+
+function saveState() {
+    try {
+        localStorage.setItem("album_pasted_ids", JSON.stringify(STATE.pastedIds));
+        localStorage.setItem("album_inventory_ids", JSON.stringify(STATE.inventoryIds));
+        localStorage.setItem("album_packs_left", STATE.packsLeft);
+    } catch (e) {
+        console.error("Erro ao salvar estado no localStorage:", e);
+    }
+}
+
+// ===================================================
+// FUNÇÃO: Preenche os slots do álbum condicionalmente
 // ===================================================
 async function preencherFigurinhas() {
     try {
-        // 1. Busca as figurinhas disponíveis na API
         const response = await fetch(`${API_BASE_URL}/figurinhas`);
-
         if (!response.ok) {
             throw new Error(`Erro na API: ${response.status} ${response.statusText}`);
         }
+        STATE.activeStickers = await response.json();
+        const porId = new Map(STATE.activeStickers.map(f => [f.id, f]));
 
-        // 2. Converte o JSON em array JavaScript
-        const figurinhas = await response.json();
-
-        // 3. Cria um Map de id → figurinha para lookup rápido
-        //    Ex: 1 → { id: 1, nome: "Alan Turing", imagem_url: "/imgs/01-alan-turing.jpg" }
-        const porId = new Map(figurinhas.map(f => [f.id, f]));
-
-        // 4. Percorre todos os slots do HTML
         const slots = document.querySelectorAll(".sticker-slot");
-
         for (const slot of slots) {
             const slotNumeroEl = slot.querySelector(".slot-number");
             if (!slotNumeroEl) continue;
 
-            // Extrai o número do slot: "#01" → 1
             const id = parseInt(slotNumeroEl.textContent.replace("#", ""), 10);
-
             if (!porId.has(id)) continue;
 
-            // A figurinha existe: insere a imagem
             const figurinha = porId.get(id);
 
-            const img = document.createElement("img");
-            img.src = `${API_BASE_URL}${figurinha.imagem_url}`;
-            img.alt = figurinha.nome;
-            img.className = "sticker-img";
+            // Atualiza os metadados textuais do slot (nome, papel/role)
+            const slotNameEl = slot.querySelector(".slot-name");
+            const slotRoleEl = slot.querySelector(".slot-role");
+            if (slotNameEl) slotNameEl.textContent = figurinha.nome;
+            if (slotRoleEl && figurinha.role) slotRoleEl.textContent = figurinha.role;
 
-            img.onload = () => slot.classList.add("slot-preenchido");
-            img.onerror = () => console.warn(`Imagem não encontrada: ${figurinha.nome}`);
+            // Limpa qualquer imagem e classe anterior antes de processar
+            const imgExistente = slot.querySelector(".sticker-img");
+            if (imgExistente) {
+                imgExistente.remove();
+            }
+            slot.classList.remove("slot-preenchido");
+            slot.classList.remove("rare-sticker");
 
-            slot.insertBefore(img, slot.firstChild);
+            // Se a figurinha foi colada pelo usuário
+            if (STATE.pastedIds.includes(id)) {
+                const img = document.createElement("img");
+                img.src = `${API_BASE_URL}${figurinha.imagem_url}`;
+                img.alt = figurinha.nome;
+                img.className = "sticker-img";
+
+                img.onload = () => slot.classList.add("slot-preenchido");
+                img.onerror = () => console.warn(`Imagem não encontrada: ${figurinha.nome}`);
+
+                slot.insertBefore(img, slot.firstChild);
+
+                // Aplica efeito holográfico se for rara
+                if (RARE_IDS.includes(id)) {
+                    slot.classList.add("rare-sticker");
+                    
+                    if (!slot.dataset.holoBound) {
+                        slot.dataset.holoBound = "true";
+                        slot.addEventListener("mousemove", (e) => {
+                            const rect = slot.getBoundingClientRect();
+                            const x = e.clientX - rect.left;
+                            const y = e.clientY - rect.top;
+                            const px = (x / rect.width) * 100;
+                            const py = (y / rect.height) * 100;
+                            slot.style.setProperty("--hologram-x", `${px}%`);
+                            slot.style.setProperty("--hologram-y", `${py}%`);
+                        });
+                    }
+                }
+            }
         }
-
-        console.log(`✅ ${figurinhas.length} figurinhas carregadas da API!`);
-
+        console.log(`✅ Figurinhas atualizadas com base nas coladas!`);
     } catch (erro) {
-        console.warn("⚠️  Não foi possível conectar à API do backend:", erro.message);
-        console.info("ℹ️  Inicie o servidor: cd backend/dia-3 && uvicorn main:app --reload");
+        console.warn("⚠️ Não foi possível carregar as figurinhas da API:", erro.message);
     }
 }
 
@@ -278,6 +329,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // 3. Audio State Controls
     soundToggle.addEventListener("click", () => {
         isMuted = !isMuted;
+        window.isMutedGlobal = isMuted;
         if (isMuted) {
             iconOn.classList.add("hidden");
             iconOff.classList.remove("hidden");
@@ -337,4 +389,484 @@ document.addEventListener("DOMContentLoaded", () => {
         // Hide left button initially since start page is 0
         btnPrev.classList.add("hidden");
     }
+
+    // ===================================================
+    // GLOBAL MUTED STATE BRIDGE
+    // ===================================================
+    window.isMutedGlobal = isMuted;
+
+    // ===================================================
+    // GLUE CARD SOUND SYNTHESIZER
+    // ===================================================
+    function playGlueSound() {
+        if (window.isMutedGlobal) return;
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const audioCtx = new AudioContext();
+            const duration = 0.25;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(550, audioCtx.currentTime + duration);
+            
+            gainNode.gain.setValueAtTime(0.18, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        } catch (e) {
+            console.warn("Erro ao tocar som de cola:", e);
+        }
+    }
+
+    // ===================================================
+    // SIDEBAR NAVIGATION & INITIALIZATION
+    // ===================================================
+    const collectorPanelToggle = document.getElementById("collector-panel-toggle");
+    const collectorSidebar = document.getElementById("collector-sidebar");
+    const closeSidebar = document.getElementById("close-sidebar");
+
+    // Abrir Sidebar
+    collectorPanelToggle.addEventListener("click", () => {
+        collectorSidebar.classList.add("open");
+    });
+
+    // Fechar Sidebar
+    closeSidebar.addEventListener("click", () => {
+        collectorSidebar.classList.remove("open");
+    });
+
+    // Eventos de Tab
+    const tabButtons = collectorSidebar.querySelectorAll(".tab-btn");
+    const tabPanes = collectorSidebar.querySelectorAll(".tab-pane");
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const targetTab = btn.getAttribute("data-tab");
+            
+            tabButtons.forEach(b => b.classList.remove("active"));
+            tabPanes.forEach(p => p.classList.remove("active"));
+            
+            btn.classList.add("active");
+            document.getElementById(targetTab).classList.add("active");
+            
+            if (targetTab === "tab-inventory") {
+                renderInventoryList();
+            }
+        });
+    });
+
+    // ===================================================
+    // TAB 1: PACOTES (PACK OPENING) LOGIC
+    // ===================================================
+    const boosterPack = document.getElementById("booster-pack");
+    const packsCountEl = document.getElementById("packs-count");
+    const revealedTitle = document.getElementById("revealed-title");
+    const revealedCardsContainer = document.getElementById("revealed-cards");
+
+    function updatePacksUI() {
+        packsCountEl.textContent = STATE.packsLeft;
+        if (STATE.packsLeft <= 0) {
+            boosterPack.style.opacity = "0.35";
+            boosterPack.style.pointerEvents = "none";
+        } else {
+            boosterPack.style.opacity = "1";
+            boosterPack.style.pointerEvents = "auto";
+        }
+    }
+
+    boosterPack.addEventListener("click", () => {
+        if (STATE.packsLeft <= 0) return;
+
+        STATE.packsLeft--;
+        saveState();
+        updatePacksUI();
+
+        playPaperTurnSound();
+        boosterPack.classList.add("ripping");
+
+        setTimeout(() => {
+            boosterPack.classList.remove("ripping");
+            
+            // Seleciona 4 cards aleatórios (ID de 1 a 29)
+            const poolSize = 29;
+            const newCards = [];
+            for (let i = 0; i < 4; i++) {
+                const randomId = Math.floor(Math.random() * poolSize) + 1;
+                newCards.push(randomId);
+                STATE.inventoryIds.push(randomId);
+            }
+            saveState();
+
+            // Mostra cards revelados
+            revealedTitle.classList.remove("hidden");
+            revealedCardsContainer.innerHTML = "";
+
+            newCards.forEach(id => {
+                const sticker = STATE.activeStickers.find(s => s.id === id);
+                if (!sticker) return;
+
+                const cardWrapper = document.createElement("div");
+                cardWrapper.className = "pack-card-wrapper";
+                cardWrapper.innerHTML = `
+                    <div class="pack-card">
+                        <div class="pack-card-back">?</div>
+                        <div class="pack-card-front">
+                            <img src="${API_BASE_URL}${sticker.imagem_url}" alt="${sticker.nome}">
+                            <div class="card-overlay-name">${sticker.nome}</div>
+                        </div>
+                    </div>
+                `;
+
+                cardWrapper.addEventListener("click", () => {
+                    const card = cardWrapper.querySelector(".pack-card");
+                    if (!card.classList.contains("flipped")) {
+                        card.classList.add("flipped");
+                        playPaperTurnSound();
+                    }
+                });
+
+                revealedCardsContainer.appendChild(cardWrapper);
+            });
+
+            // Atualiza contadores
+            document.getElementById("inventory-count").textContent = STATE.inventoryIds.length;
+
+        }, 800);
+    });
+
+    // ===================================================
+    // TAB 2: INVENTÁRIO LOGIC
+    // ===================================================
+    const inventoryListEl = document.getElementById("inventory-list");
+    const inventoryCountEl = document.getElementById("inventory-count");
+
+    function renderInventoryList() {
+        inventoryCountEl.textContent = STATE.inventoryIds.length;
+        inventoryListEl.innerHTML = "";
+
+        if (STATE.inventoryIds.length === 0) {
+            inventoryListEl.innerHTML = `<div class="inventory-empty">Seu inventário está vazio. Abra pacotes ou responda o quiz!</div>`;
+            return;
+        }
+
+        const counts = {};
+        STATE.inventoryIds.forEach(id => {
+            counts[id] = (counts[id] || 0) + 1;
+        });
+
+        const sortedIds = Object.keys(counts).map(Number).sort((a, b) => a - b);
+
+        sortedIds.forEach(id => {
+            const sticker = STATE.activeStickers.find(s => s.id === id);
+            if (!sticker) return;
+
+            const isRare = RARE_IDS.includes(id);
+            const isPasted = STATE.pastedIds.includes(id);
+
+            const itemEl = document.createElement("div");
+            itemEl.className = "inventory-item";
+            itemEl.innerHTML = `
+                <div class="item-info">
+                    <span class="item-title">${sticker.nome} ${isRare ? '✨' : ''}</span>
+                    <div class="item-meta">
+                        <span>#${String(id).padStart(2, '0')}</span>
+                        <span>•</span>
+                        <span>${sticker.categoria}</span>
+                        <span>•</span>
+                        <span class="item-qty">Qtd: ${counts[id]}</span>
+                    </div>
+                </div>
+                <button class="btn-paste" data-id="${id}">
+                    ${isPasted ? 'Colar Repetida' : 'Colar no Álbum'}
+                </button>
+            `;
+
+            const pasteBtn = itemEl.querySelector(".btn-paste");
+            pasteBtn.addEventListener("click", () => {
+                pasteSticker(id);
+            });
+
+            inventoryListEl.appendChild(itemEl);
+        });
+    }
+
+    function pasteSticker(id) {
+        const index = STATE.inventoryIds.indexOf(id);
+        if (index > -1) {
+            STATE.inventoryIds.splice(index, 1);
+        }
+
+        if (!STATE.pastedIds.includes(id)) {
+            STATE.pastedIds.push(id);
+        }
+
+        saveState();
+        playGlueSound();
+        preencherFigurinhas();
+
+        // Vira a página automaticamente
+        if (pageFlip) {
+            const pageIndex = Math.ceil(id / 5);
+            pageFlip.flip(pageIndex);
+        }
+
+        renderInventoryList();
+        verificarAlbumCompleto();
+    }
+
+    function verificarAlbumCompleto() {
+        if (STATE.pastedIds.length === 30) {
+            setTimeout(() => {
+                alert("🏆 PARABÉNS! Você completou o Álbum da Copa do Mundo Tech! Você se tornou uma verdadeira lenda da tecnologia!");
+            }, 1000);
+        }
+    }
+
+    // ===================================================
+    // TAB 3: QUIZ TRIVIA GAME LOGIC
+    // ===================================================
+    const QUIZ_QUESTIONS = [
+        {
+            q: "Quem é considerado o pai da computação e criou a máquina que decifrou códigos na 2ª Guerra?",
+            o: ["John McCarthy", "Alan Turing", "Dennis Ritchie", "Sam Altman"],
+            a: 1
+        },
+        {
+            q: "Qual linguagem de programação foi criada por Guido van Rossum?",
+            o: ["C++", "Java", "Python", "Ruby"],
+            a: 2
+        },
+        {
+            q: "Quem é o cofundador do Linux e criador do Git?",
+            o: ["Richard Stallman", "Steve Jobs", "Bill Gates", "Linus Torvalds"],
+            a: 3
+        },
+        {
+            q: "Quem escreveu o Zen do Python?",
+            o: ["Tim Peters", "Raymond Hettinger", "Wes McKinney", "Guido van Rossum"],
+            a: 0
+        },
+        {
+            q: "Qual termo John McCarthy cunhou em 1956?",
+            o: ["Deep Learning", "Machine Learning", "Inteligência Artificial", "Sistemas Inteligentes"],
+            a: 2
+        },
+        {
+            q: "Quem cofundou a Alura junto com Guilherme Silveira?",
+            o: ["Paulo Silveira", "Gustavo Guanabara", "Andre David", "Guilherme Lima"],
+            a: 0
+        },
+        {
+            q: "Quem é o criador do canal Curso em Vídeo e grande educador de tecnologia no Brasil?",
+            o: ["Maurício Aniche", "Vinicius Neves", "Gustavo Guanabara", "Paulo Silveira"],
+            a: 2
+        },
+        {
+            q: "Qual banco de dados in-memory noSQL foi criado por Salvatore Sanfilippo?",
+            o: ["MongoDB", "MySQL", "Redis", "Oracle"],
+            a: 2
+        }
+    ];
+
+    let quizState = {
+        active: false,
+        questions: [],
+        currentIndex: 0,
+        correctCount: 0
+    };
+
+    const quizWelcome = document.getElementById("quiz-welcome");
+    const quizGame = document.getElementById("quiz-game");
+    const quizResult = document.getElementById("quiz-result");
+    const startQuizBtn = document.getElementById("start-quiz-btn");
+    const quizQuestionText = document.getElementById("quiz-question-text");
+    const quizOptionsContainer = document.getElementById("quiz-options-container");
+    const quizCurrentNum = document.getElementById("quiz-current-num");
+    const quizResultTitle = document.getElementById("quiz-result-title");
+    const quizResultText = document.getElementById("quiz-result-text");
+    const quizRestartBtn = document.getElementById("quiz-restart-btn");
+
+    startQuizBtn.addEventListener("click", startQuiz);
+    quizRestartBtn.addEventListener("click", startQuiz);
+
+    function startQuiz() {
+        const shuffled = [...QUIZ_QUESTIONS].sort(() => 0.5 - Math.random());
+        quizState.questions = shuffled.slice(0, 3);
+        quizState.currentIndex = 0;
+        quizState.correctCount = 0;
+        quizState.active = true;
+
+        quizWelcome.classList.add("hidden");
+        quizResult.classList.add("hidden");
+        quizGame.classList.remove("hidden");
+
+        renderQuizQuestion();
+    }
+
+    function renderQuizQuestion() {
+        const question = quizState.questions[quizState.currentIndex];
+        quizCurrentNum.textContent = quizState.currentIndex + 1;
+        quizQuestionText.textContent = question.q;
+        quizOptionsContainer.innerHTML = "";
+
+        question.o.forEach((opt, idx) => {
+            const btn = document.createElement("button");
+            btn.className = "quiz-opt-btn";
+            btn.textContent = opt;
+            btn.addEventListener("click", () => handleQuizAnswer(idx, btn));
+            quizOptionsContainer.appendChild(btn);
+        });
+    }
+
+    function handleQuizAnswer(selectedIndex, clickedBtn) {
+        const question = quizState.questions[quizState.currentIndex];
+        const correctIndex = question.a;
+        const optionsButtons = quizOptionsContainer.querySelectorAll(".quiz-opt-btn");
+
+        optionsButtons.forEach(btn => btn.style.pointerEvents = "none");
+
+        if (selectedIndex === correctIndex) {
+            clickedBtn.classList.add("correct");
+            quizState.correctCount++;
+        } else {
+            clickedBtn.classList.add("wrong");
+            optionsButtons[correctIndex].classList.add("correct");
+        }
+
+        setTimeout(() => {
+            quizState.currentIndex++;
+            if (quizState.currentIndex < 3) {
+                renderQuizQuestion();
+            } else {
+                finishQuiz();
+            }
+        }, 1500);
+    }
+
+    function finishQuiz() {
+        quizGame.classList.add("hidden");
+        quizResult.classList.remove("hidden");
+
+        if (quizState.correctCount === 3) {
+            quizResultTitle.textContent = "🏆 Perfeito!";
+            quizResultText.innerHTML = `Você acertou 3 de 3 e ganhou <strong>+2 pacotes</strong> de figurinhas!`;
+            STATE.packsLeft += 2;
+            saveState();
+            updatePacksUI();
+        } else if (quizState.correctCount === 2) {
+            quizResultTitle.textContent = "👍 Quase lá!";
+            quizResultText.innerHTML = `Você acertou 2 de 3. Precisa acertar todas para ganhar pacotes!`;
+        } else {
+            quizResultTitle.textContent = "📚 Continue estudando!";
+            quizResultText.textContent = `Você acertou ${quizState.correctCount} de 3. Tente de novo!`;
+        }
+    }
+
+    // ===================================================
+    // TAB 4: CRIAR FIGURINHA #30 UPLOAD LOGIC
+    // ===================================================
+    const customCardForm = document.getElementById("custom-card-form");
+    const customFileInput = document.getElementById("custom-file");
+    const fileLabelText = document.getElementById("file-label-text");
+    const uploadPreviewContainer = document.getElementById("upload-preview-container");
+    const uploadPreview = document.getElementById("upload-preview");
+    const customStatusMsg = document.getElementById("custom-status-msg");
+
+    customFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            fileLabelText.textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                uploadPreview.src = event.target.result;
+                uploadPreviewContainer.classList.remove("hidden");
+            };
+            reader.readAsDataURL(file);
+        } else {
+            fileLabelText.textContent = "Selecionar Imagem";
+            uploadPreviewContainer.classList.add("hidden");
+        }
+    });
+
+    customCardForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        
+        const nomeInput = document.getElementById("custom-name").value.trim();
+        const roleInput = document.getElementById("custom-role").value.trim();
+        const file = customFileInput.files[0];
+
+        if (!nomeInput || !roleInput || !file) {
+            showCustomStatus("Preencha todos os campos e selecione uma foto!", "error");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("nome", nomeInput);
+        formData.append("role", roleInput);
+
+        showCustomStatus("Enviando dados...", "info");
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/figurinhas/30`, {
+                method: "POST",
+                body: formData
+            });
+
+            if (!response.ok) {
+                const errDetail = await response.json();
+                throw new Error(errDetail.detail || "Erro no upload");
+            }
+
+            const data = await response.json();
+            
+            showCustomStatus("Figurinha criada com sucesso! Ela foi adicionada ao seu inventário.", "success");
+            
+            if (!STATE.inventoryIds.includes(30)) {
+                STATE.inventoryIds.push(30);
+            }
+            saveState();
+
+            customCardForm.reset();
+            fileLabelText.textContent = "Selecionar Imagem";
+            uploadPreviewContainer.classList.add("hidden");
+
+            await preencherFigurinhas();
+            renderInventoryList();
+
+        } catch (error) {
+            console.error(error);
+            showCustomStatus(`Erro: ${error.message}`, "error");
+        }
+    });
+
+    function showCustomStatus(msg, type) {
+        customStatusMsg.textContent = msg;
+        customStatusMsg.className = "status-msg";
+        customStatusMsg.classList.remove("hidden");
+        if (type === "success") {
+            customStatusMsg.classList.add("success");
+        } else if (type === "error") {
+            customStatusMsg.classList.add("error");
+        } else {
+            customStatusMsg.style.background = "rgba(0, 240, 255, 0.1)";
+            customStatusMsg.style.border = "1px solid rgba(0, 240, 255, 0.4)";
+            customStatusMsg.style.color = "#00f0ff";
+        }
+    }
+
+    // ===================================================
+    // INICIALIZAÇÃO DE ESTADO DO COLECONADOR
+    // ===================================================
+    loadState();
+    updatePacksUI();
+    renderInventoryList();
 });
+
