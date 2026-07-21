@@ -3,7 +3,9 @@
 // Quando o frontend for servido pelo FastAPI (Dia 3), a API está
 // no mesmo servidor — usamos uma URL relativa ou o endereço completo.
 // ===================================================
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000"
+    : "https://sua-api-backend.onrender.com"; // Substitua pela URL da sua API deployada (ex: no Render ou Railway)
 
 // ===================================================
 // GERENCIAMENTO DE ESTADO LOCAL (localStorage)
